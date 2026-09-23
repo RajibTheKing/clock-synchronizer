@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
             ClockSyncTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = "TheKing",
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
