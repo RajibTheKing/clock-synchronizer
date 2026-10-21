@@ -30,8 +30,7 @@ def main() -> None:
     _apply_bright_theme(app)
 
     window = MainWindow()
-    window.resize(420, 720)
-    window.show()
+    window.showMaximized()
 
     sys.exit(app.exec())
 
