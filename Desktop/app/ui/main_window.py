@@ -27,7 +27,6 @@ COLOR_GOOD = "#2E7D32"
 COLOR_MODERATE = "#EF6C00"
 COLOR_BAD = "#C62828"
 COLOR_PRIMARY = "#3F51B5"
-COLOR_PRIMARY_CONTAINER = "#E1E4FB"
 COLOR_SURFACE_VARIANT = "#EEF0FA"
 COLOR_OUTLINE = "#71767F"
 
@@ -92,8 +91,6 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        root.addWidget(self._build_title_bar())
-
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 16, 16, 16)
@@ -117,26 +114,6 @@ class MainWindow(QMainWindow):
         body_layout.addWidget(self.empty_label, 1)
 
         self._refresh_history_ui()
-
-    def _build_title_bar(self) -> QWidget:
-        bar = QWidget()
-        bar.setStyleSheet(f"background-color: {COLOR_PRIMARY_CONTAINER};")
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(16, 14, 16, 14)
-
-        title = QLabel("Clock Drift Synchronizer")
-        title.setStyleSheet("font-size: 18px; font-weight: 700;")
-        layout.addWidget(title)
-        layout.addStretch(1)
-
-        self.clear_button = QPushButton("Clear")
-        self.clear_button.setFlat(True)
-        self.clear_button.setCursor(Qt.PointingHandCursor)
-        self.clear_button.setStyleSheet(f"color: {COLOR_BAD}; font-weight: 600; border: none;")
-        self.clear_button.clicked.connect(self._on_clear_history)
-        layout.addWidget(self.clear_button)
-
-        return bar
 
     def _build_stats_card(self) -> QWidget:
         card = QFrame()
@@ -250,12 +227,6 @@ class MainWindow(QMainWindow):
             self.seconds_until_next_sync = SYNC_INTERVAL_SECONDS
         self._update_next_sync_label()
 
-    def _on_clear_history(self) -> None:
-        self.history = []
-        self.stats = NtpStats()
-        self._refresh_history_ui()
-        self._refresh_stats_ui()
-
     def _on_tick(self) -> None:
         if self.is_auto_sync_enabled and not self.is_syncing:
             self.seconds_until_next_sync -= 1
@@ -336,7 +307,6 @@ class MainWindow(QMainWindow):
 
     def _refresh_history_ui(self) -> None:
         self.history_title_label.setText(f"Sync History ({len(self.history)})")
-        self.clear_button.setVisible(bool(self.history))
 
         self.history_list.clear()
         self.history_list.setVisible(bool(self.history))

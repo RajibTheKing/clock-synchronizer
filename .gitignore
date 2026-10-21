@@ -10,8 +10,10 @@
 .DS_Store
 /build
 /captures
+*.pyc
 .externalNativeBuild
 .cxx
 local.properties
 .idea
 .venv
+
