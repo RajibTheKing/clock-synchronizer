@@ -1,19 +1,23 @@
 """Main window UI for the Clock Drift Synchronizer desktop application."""
 from __future__ import annotations
 
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QAbstractItemView,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
-    QPushButton,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -21,7 +25,12 @@ from PySide6.QtWidgets import (
 from app.data.models import NtpStats, NtpSyncResult
 from app.network.sntp_client import SntpClient
 
-SYNC_INTERVAL_SECONDS = 5
+HISTORY_COLUMNS = ["Device MAC ID", "Date", "Time", "RTT", "Clock Drift"]
+
+
+def get_device_mac() -> str:
+    node = f"{uuid.getnode():012X}"
+    return ":".join(node[i:i + 2] for i in range(0, 12, 2))
 
 COLOR_GOOD = "#2E7D32"
 COLOR_MODERATE = "#EF6C00"
@@ -45,17 +54,25 @@ def get_drift_color(offset_ms: float) -> str:
     return COLOR_BAD
 
 
+@dataclass
+class ServerTab:
+    table: QTableWidget
+    empty_label: QLabel
+    history: list[NtpSyncResult] = field(default_factory=list)
+
+
 class NtpWorker(QObject):
     """Runs a blocking NTP request on a background thread."""
 
     finished = Signal(object)
 
-    def __init__(self, client: SntpClient) -> None:
+    def __init__(self, client: SntpClient, host: str) -> None:
         super().__init__()
         self._client = client
+        self._host = host
 
     def run(self) -> None:
-        result = self._client.request_time()
+        result = self._client.query_server(self._host)
         self.finished.emit(result)
 
 
@@ -65,11 +82,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Clock Drift Synchronizer")
 
         self.sntp_client = SntpClient()
-        self.history: list[NtpSyncResult] = []
-        self.stats = NtpStats()
+        self.servers = self.sntp_client.servers
+        self._next_index = 0
+        self.current_server: Optional[str] = None
         self.is_syncing = False
-        self.is_auto_sync_enabled = True
-        self.seconds_until_next_sync = SYNC_INTERVAL_SECONDS
 
         self._thread: Optional[QThread] = None
         self._worker: Optional[NtpWorker] = None
@@ -80,8 +96,7 @@ class MainWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._on_tick)
         self.timer.start(1000)
-
-        self._perform_sync()
+        self._on_tick()
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -98,23 +113,42 @@ class MainWindow(QMainWindow):
         body_layout.setSpacing(16)
         root.addWidget(body, 1)
 
+        self.device_mac = get_device_mac()
         body_layout.addWidget(self._build_stats_card())
-        body_layout.addWidget(self._build_controls_row())
         body_layout.addWidget(self._build_history_header())
 
-        self.history_list = QListWidget()
-        self.history_list.setFrameShape(QFrame.NoFrame)
-        self.history_list.setSpacing(6)
-        self.history_list.setSelectionMode(QListWidget.NoSelection)
-        self.history_list.setStyleSheet("QListWidget { background: transparent; border: none; }")
-        body_layout.addWidget(self.history_list, 1)
+        self.tabs = QTabWidget()
+        self.tab_states: dict[str, ServerTab] = {}
+        for host in self.servers:
+            self.tab_states[host] = self._build_server_tab(host)
+        self.tabs.currentChanged.connect(lambda _i: self._refresh_stats_ui())
+        body_layout.addWidget(self.tabs, 1)
 
-        self.empty_label = QLabel("No NTP sync entries yet.\nPress 'Sync Now' or wait for auto-sync.")
-        self.empty_label.setAlignment(Qt.AlignCenter)
-        self.empty_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 14px;")
-        body_layout.addWidget(self.empty_label, 1)
+        self._update_status_label()
 
-        self._refresh_history_ui()
+    def _build_server_tab(self, host: str) -> "ServerTab":
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 8, 0, 0)
+
+        table = QTableWidget(0, len(HISTORY_COLUMNS))
+        table.setHorizontalHeaderLabels(HISTORY_COLUMNS)
+        table.setFrameShape(QFrame.NoFrame)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setSelectionMode(QAbstractItemView.NoSelection)
+        table.setAlternatingRowColors(True)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setVisible(False)
+        layout.addWidget(table, 1)
+
+        empty = QLabel(f"No sync entries yet for {host}.")
+        empty.setAlignment(Qt.AlignCenter)
+        empty.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 14px;")
+        layout.addWidget(empty, 1)
+
+        self.tabs.addTab(page, host)
+        return ServerTab(table=table, empty_label=empty)
 
     def _build_stats_card(self) -> QWidget:
         card = QFrame()
@@ -177,31 +211,6 @@ class MainWindow(QMainWindow):
         tile_layout.addWidget(value)
         return value, tile
 
-    def _build_controls_row(self) -> QWidget:
-        row = QWidget()
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        self.sync_button = QPushButton("Sync Now")
-        self.sync_button.setCursor(Qt.PointingHandCursor)
-        self.sync_button.setMinimumHeight(40)
-        self.sync_button.setStyleSheet(
-            f"QPushButton {{ background-color: {COLOR_PRIMARY}; color: white; border-radius: 8px;"
-            " font-weight: 600; padding: 0 16px; }"
-            "QPushButton:disabled { background-color: #9FA8DA; }"
-        )
-        self.sync_button.clicked.connect(self._on_manual_sync)
-        layout.addWidget(self.sync_button, 1)
-
-        layout.addSpacing(16)
-
-        self.auto_sync_checkbox = QCheckBox("Auto 5s")
-        self.auto_sync_checkbox.setChecked(True)
-        self.auto_sync_checkbox.stateChanged.connect(self._on_toggle_auto_sync)
-        layout.addWidget(self.auto_sync_checkbox)
-
-        return row
-
     def _build_history_header(self) -> QWidget:
         row = QWidget()
         layout = QHBoxLayout(row)
@@ -212,39 +221,26 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.history_title_label)
         layout.addStretch(1)
 
-        self.next_sync_label = QLabel()
-        layout.addWidget(self.next_sync_label)
+        self.status_label = QLabel()
+        layout.addWidget(self.status_label)
 
         return row
 
     # ------------------------------------------------------------- actions
-    def _on_manual_sync(self) -> None:
-        self.seconds_until_next_sync = SYNC_INTERVAL_SECONDS
-        self._perform_sync()
-
-    def _on_toggle_auto_sync(self, _state: int) -> None:
-        self.is_auto_sync_enabled = self.auto_sync_checkbox.isChecked()
-        if self.is_auto_sync_enabled:
-            self.seconds_until_next_sync = SYNC_INTERVAL_SECONDS
-        self._update_next_sync_label()
-
     def _on_tick(self) -> None:
-        if self.is_auto_sync_enabled and not self.is_syncing:
-            self.seconds_until_next_sync -= 1
-            if self.seconds_until_next_sync <= 0:
-                self.seconds_until_next_sync = SYNC_INTERVAL_SECONDS
-                self._perform_sync()
-            else:
-                self._update_next_sync_label()
-
-    def _perform_sync(self) -> None:
         if self.is_syncing:
             return
+        host = self.servers[self._next_index]
+        self._next_index = (self._next_index + 1) % len(self.servers)
+        self._perform_sync(host)
+
+    def _perform_sync(self, host: str) -> None:
         self.is_syncing = True
-        self._update_controls()
+        self.current_server = host
+        self._update_status_label()
 
         self._thread = QThread(self)
-        self._worker = NtpWorker(self.sntp_client)
+        self._worker = NtpWorker(self.sntp_client, host)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._on_sync_finished)
@@ -254,29 +250,26 @@ class MainWindow(QMainWindow):
         self._thread.start()
 
     def _on_sync_finished(self, result: NtpSyncResult) -> None:
-        self.history.insert(0, result)
-        self.stats = NtpStats.from_results(self.history)
+        state = self.tab_states[result.server_used]
+        state.history.insert(0, result)
         self.is_syncing = False
-        self._update_controls()
-        self._refresh_history_ui()
+        self._update_status_label()
+        self._refresh_history_ui(result.server_used)
         self._refresh_stats_ui()
 
     # --------------------------------------------------------------- render
-    def _update_controls(self) -> None:
-        self.sync_button.setEnabled(not self.is_syncing)
-        self.sync_button.setText("Syncing..." if self.is_syncing else "Sync Now")
-        self._update_next_sync_label()
-
-    def _update_next_sync_label(self) -> None:
-        if self.is_auto_sync_enabled:
-            self.next_sync_label.setText(f"Next sync in {self.seconds_until_next_sync}s")
-            self.next_sync_label.setStyleSheet(f"color: {COLOR_PRIMARY}; font-weight: 600;")
+    def _update_status_label(self) -> None:
+        if self.is_syncing and self.current_server:
+            self.status_label.setText(f"Syncing with {self.current_server}...")
+            self.status_label.setStyleSheet(f"color: {COLOR_PRIMARY}; font-weight: 600;")
         else:
-            self.next_sync_label.setText("Auto-sync paused")
-            self.next_sync_label.setStyleSheet(f"color: {COLOR_OUTLINE};")
+            upcoming = self.servers[self._next_index]
+            self.status_label.setText(f"Next: {upcoming}")
+            self.status_label.setStyleSheet(f"color: {COLOR_OUTLINE};")
 
     def _refresh_stats_ui(self) -> None:
-        stats = self.stats
+        host = self.servers[max(self.tabs.currentIndex(), 0)]
+        stats = NtpStats.from_results(self.tab_states[host].history)
         if stats.success_count > 0:
             self.avg_value_label.setText(f"{stats.average_offset_last10:.1f} ms")
             self.avg_value_label.setStyleSheet(
@@ -306,73 +299,38 @@ class MainWindow(QMainWindow):
             self.worst_label.setText("-- ms")
             self.worst_label.setStyleSheet("font-size: 14px; font-weight: 700;")
 
-    def _refresh_history_ui(self) -> None:
-        self.history_title_label.setText(f"Sync History ({len(self.history)})")
-
-        self.history_list.clear()
-        self.history_list.setVisible(bool(self.history))
-        self.empty_label.setVisible(not self.history)
-
-        for result in self.history:
-            item = QListWidgetItem()
-            widget = self._build_history_item_widget(result)
-            item.setSizeHint(widget.sizeHint())
-            self.history_list.addItem(item)
-            self.history_list.setItemWidget(item, widget)
-
-    @staticmethod
-    def _build_history_item_widget(result: NtpSyncResult) -> QWidget:
-        card = QFrame()
-        bg = "#FFFFFF" if result.is_success else "#FCECEC"
-        card.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border-radius: 10px; border: 1px solid #E2E2E8; }}"
+    def _refresh_history_ui(self, host: str) -> None:
+        state = self.tab_states[host]
+        self.history_title_label.setText(
+            f"Sync History ({sum(len(t.history) for t in self.tab_states.values())})"
         )
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(14, 10, 14, 10)
 
-        left_col = QVBoxLayout()
-        time_str = datetime.fromtimestamp(result.timestamp_ms / 1000).strftime("%H:%M:%S")
+        state.table.setVisible(bool(state.history))
+        state.empty_label.setVisible(not state.history)
 
-        top_row = QHBoxLayout()
-        dot = QLabel()
-        dot.setFixedSize(10, 10)
-        dot_color = get_drift_color(result.offset_ms) if result.is_success else COLOR_BAD
-        dot.setStyleSheet(f"background-color: {dot_color}; border-radius: 5px;")
-        top_row.addWidget(dot)
-        time_label = QLabel(time_str)
-        time_label.setStyleSheet("font-weight: 700; font-size: 14px;")
-        top_row.addWidget(time_label)
-        top_row.addStretch(1)
-        left_col.addLayout(top_row)
-
-        subtitle_text = f"Server: {result.server_used}" if result.is_success else (result.error_message or "Failed")
-        subtitle = QLabel(subtitle_text)
-        subtitle.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
-        subtitle.setWordWrap(True)
-        left_col.addWidget(subtitle)
-
-        layout.addLayout(left_col, 1)
-
-        if result.is_success:
-            right_col = QVBoxLayout()
-            right_col.setAlignment(Qt.AlignRight)
-            offset_label = QLabel(format_offset(result.offset_ms))
-            offset_label.setAlignment(Qt.AlignRight)
-            offset_label.setStyleSheet(
-                f"font-size: 16px; font-weight: 800; color: {get_drift_color(result.offset_ms)};"
-            )
-            rtt_label = QLabel(f"RTT: {result.round_trip_delay_ms:.0f} ms")
-            rtt_label.setAlignment(Qt.AlignRight)
-            rtt_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 10px;")
-            right_col.addWidget(offset_label)
-            right_col.addWidget(rtt_label)
-            layout.addLayout(right_col)
-        else:
-            error_label = QLabel("ERROR")
-            error_label.setStyleSheet(f"color: {COLOR_BAD}; font-weight: 700;")
-            layout.addWidget(error_label)
-
-        return card
+        state.table.setRowCount(len(state.history))
+        for row, result in enumerate(state.history):
+            moment = datetime.fromtimestamp(result.timestamp_ms / 1000)
+            if result.is_success:
+                rtt = f"{result.round_trip_delay_ms:.0f} ms"
+                drift = format_offset(result.offset_ms)
+                drift_color = get_drift_color(result.offset_ms)
+            else:
+                rtt = "--"
+                drift = result.error_message or "Error"
+                drift_color = COLOR_BAD
+            values = [
+                self.device_mac,
+                moment.strftime("%Y-%m-%d"),
+                moment.strftime("%H:%M:%S"),
+                rtt,
+                drift,
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if col == len(values) - 1:
+                    item.setForeground(QColor(drift_color))
+                state.table.setItem(row, col, item)
 
     def closeEvent(self, event) -> None:
         self.timer.stop()

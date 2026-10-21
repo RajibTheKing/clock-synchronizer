@@ -8,8 +8,16 @@ import ntplib
 
 from app.data.models import NtpSyncResult
 
-DEFAULT_NTP_SERVERS = ["pool.ntp.org"]
-DEFAULT_TIMEOUT_SECONDS = 5
+DEFAULT_NTP_SERVERS = [
+    "time.google.com",
+    "time.cloudflare.com",
+    "time.facebook.com",
+    "time.apple.com",
+    "time.windows.com",
+    "pool.ntp.org",
+    "time.nist.gov",
+]
+DEFAULT_TIMEOUT_SECONDS = 3
 
 
 class SntpClient:
@@ -47,6 +55,17 @@ class SntpClient:
         offset = response.offset * 1000  # Convert to milliseconds
 
         return offset
+
+    @property
+    def servers(self) -> List[str]:
+        return list(self._ntp_servers)
+
+    def query_server(self, host: str) -> NtpSyncResult:
+        """Queries a single server; failures are returned as unsuccessful results."""
+        try:
+            return self._query_server(host)
+        except Exception as exc:  # noqa: BLE001 - surfaced to the UI, not fatal
+            return NtpSyncResult(is_success=False, server_used=host, error_message=str(exc))
 
     def _query_server(self, host: str) -> NtpSyncResult:
         client = ntplib.NTPClient()
