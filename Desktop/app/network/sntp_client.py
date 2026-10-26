@@ -1,4 +1,4 @@
-"""SNTP client for measuring system clock drift against NTP servers."""
+"""SNTP client for measuring system clock offset against NTP servers."""
 from __future__ import annotations
 
 import time

@@ -1,4 +1,4 @@
-"""Entry point for the Clock Drift Synchronizer desktop application."""
+"""Entry point for the Clock Offset Synchronizer desktop application."""
 import sys
 
 from PySide6.QtGui import QColor, QPalette
@@ -26,7 +26,7 @@ def _apply_bright_theme(app: QApplication) -> None:
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setApplicationName("Clock Drift Synchronizer")
+    app.setApplicationName("Clock Offset Synchronizer")
     _apply_bright_theme(app)
 
     window = MainWindow()

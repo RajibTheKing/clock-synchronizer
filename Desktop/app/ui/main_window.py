@@ -1,4 +1,4 @@
-"""Main window UI for the Clock Drift Synchronizer desktop application."""
+"""Main window UI for the Clock Offset Synchronizer desktop application."""
 from __future__ import annotations
 
 import uuid
@@ -24,9 +24,18 @@ from PySide6.QtWidgets import (
 )
 
 from app.data.models import NtpStats, NtpSyncResult
+from app.network.connection_info import get_network_connection
 from app.network.sntp_client import SntpClient
 
-HISTORY_COLUMNS = ["Device MAC ID", "Date", "Time", "RTT", "Clock Drift"]
+HISTORY_COLUMNS = [
+    "Device MAC ID",
+    "Date",
+    "Time",
+    "RTT",
+    "Clock Offset",
+    "Network Connection",
+]
+CLOCK_OFFSET_COLUMN_INDEX = HISTORY_COLUMNS.index("Clock Offset")
 
 
 def get_device_mac() -> str:
@@ -46,7 +55,7 @@ def format_offset(offset_ms: float) -> str:
     return f"{sign}{offset_ms:.1f} ms"
 
 
-def get_drift_color(offset_ms: float) -> str:
+def get_offset_color(offset_ms: float) -> str:
     abs_offset = abs(offset_ms)
     if abs_offset < 20:
         return COLOR_GOOD
@@ -73,14 +82,16 @@ class NtpWorker(QObject):
         self._host = host
 
     def run(self) -> None:
+        network_connection = get_network_connection(self._host)
         result = self._client.query_server(self._host)
+        result.network_connection = network_connection
         self.finished.emit(result)
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Clock Drift Synchronizer")
+        self.setWindowTitle("Clock Offset Synchronizer")
 
         self.sntp_client = SntpClient()
         self.servers = self.sntp_client.servers
@@ -160,7 +171,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        heading = QLabel("Clock Drift Statistics")
+        heading = QLabel("Clock Offset Statistics")
         heading.setStyleSheet(f"color: {COLOR_OUTLINE}; font-weight: 700; font-size: 12px;")
         layout.addWidget(heading)
 
@@ -172,7 +183,7 @@ class MainWindow(QMainWindow):
 
         avg_col = QVBoxLayout()
         avg_col.setSpacing(2)
-        avg_label = QLabel("Avg Drift (Last 10)")
+        avg_label = QLabel("Avg Offset (Last 10)")
         avg_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
         self.avg_value_label = QLabel("N/A")
         self.avg_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
@@ -190,7 +201,7 @@ class MainWindow(QMainWindow):
         count_col.addWidget(self.count_value_label)
         grid.addLayout(count_col, 0, 1, 2, 1)
 
-        # Min/Max and Min/Max Rolling Avg Drift are each kept side by side
+        # Min/Max and Min/Max Rolling Avg Offset are each kept side by side
         # in their own row, stacked under one another.
         self.min_label, min_tile = self._build_stat_tile("Min")
         self.max_label, max_tile = self._build_stat_tile("Max")
@@ -282,7 +293,7 @@ class MainWindow(QMainWindow):
         if stats.success_count > 0:
             self.avg_value_label.setText(f"{stats.average_offset_last10:.1f} ms")
             self.avg_value_label.setStyleSheet(
-                f"font-size: 24px; font-weight: 800; color: {get_drift_color(stats.average_offset_last10)};"
+                f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.average_offset_last10)};"
             )
         else:
             self.avg_value_label.setText("N/A")
@@ -293,7 +304,7 @@ class MainWindow(QMainWindow):
         if stats.min_offset is not None:
             self.min_label.setText(format_offset(stats.min_offset))
             self.min_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.min_offset)};"
+                f"font-size: 14px; font-weight: 700; color: {get_offset_color(stats.min_offset)};"
             )
         else:
             self.min_label.setText("-- ms")
@@ -302,7 +313,7 @@ class MainWindow(QMainWindow):
         if stats.max_offset is not None:
             self.max_label.setText(format_offset(stats.max_offset))
             self.max_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.max_offset)};"
+                f"font-size: 14px; font-weight: 700; color: {get_offset_color(stats.max_offset)};"
             )
         else:
             self.max_label.setText("-- ms")
@@ -311,7 +322,7 @@ class MainWindow(QMainWindow):
         if stats.min_avg_offset_last10 is not None:
             self.min_avg_label.setText(format_offset(stats.min_avg_offset_last10))
             self.min_avg_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.min_avg_offset_last10)};"
+                f"font-size: 14px; font-weight: 700; color: {get_offset_color(stats.min_avg_offset_last10)};"
             )
         else:
             self.min_avg_label.setText("-- ms")
@@ -320,7 +331,7 @@ class MainWindow(QMainWindow):
         if stats.max_avg_offset_last10 is not None:
             self.max_avg_label.setText(format_offset(stats.max_avg_offset_last10))
             self.max_avg_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.max_avg_offset_last10)};"
+                f"font-size: 14px; font-weight: 700; color: {get_offset_color(stats.max_avg_offset_last10)};"
             )
         else:
             self.max_avg_label.setText("-- ms")
@@ -340,23 +351,24 @@ class MainWindow(QMainWindow):
             moment = datetime.fromtimestamp(result.timestamp_ms / 1000)
             if result.is_success:
                 rtt = f"{result.round_trip_delay_ms:.0f} ms"
-                drift = format_offset(result.offset_ms)
-                drift_color = get_drift_color(result.offset_ms)
+                offset_text = format_offset(result.offset_ms)
+                offset_color = get_offset_color(result.offset_ms)
             else:
                 rtt = "--"
-                drift = result.error_message or "Error"
-                drift_color = COLOR_BAD
+                offset_text = result.error_message or "Error"
+                offset_color = COLOR_BAD
             values = [
                 self.device_mac,
                 moment.strftime("%Y-%m-%d"),
                 moment.strftime("%H:%M:%S"),
                 rtt,
-                drift,
+                offset_text,
+                result.network_connection,
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                if col == len(values) - 1:
-                    item.setForeground(QColor(drift_color))
+                if col == CLOCK_OFFSET_COLUMN_INDEX:
+                    item.setForeground(QColor(offset_color))
                 state.table.setItem(row, col, item)
 
     def closeEvent(self, event) -> None:

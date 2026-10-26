@@ -10,9 +10,9 @@ from typing import List, Optional
 
 @dataclass
 class NtpSyncResult:
-    """Represents the result of a single NTP clock drift calculation.
+    """Represents the result of a single NTP clock offset calculation.
 
-    offset_ms: Clock drift in milliseconds. Positive = local clock is ahead
+    offset_ms: Clock offset in milliseconds. Positive = local clock is ahead
     of true time, negative = local clock is behind true time.
     """
 
@@ -23,6 +23,7 @@ class NtpSyncResult:
     is_success: bool = True
     error_message: Optional[str] = None
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    network_connection: str = "Unknown"
 
 
 @dataclass
@@ -48,7 +49,7 @@ class NtpStats:
         min_offset = min(r.offset_ms for r in successful)
         max_offset = max(r.offset_ms for r in successful)
 
-        # Rolling "Avg Drift (Last 10)" as it would have appeared after each
+        # Rolling "Avg Offset (Last 10)" as it would have appeared after each
         # sync in chronological order, used to find its session min/max.
         chronological = list(reversed(successful))
         rolling_averages = [
