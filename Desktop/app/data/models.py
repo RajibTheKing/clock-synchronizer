@@ -32,6 +32,8 @@ class NtpStats:
     average_offset_last10: float = 0.0
     best_offset: Optional[float] = None
     worst_offset: Optional[float] = None
+    min_avg_offset_last10: Optional[float] = None
+    max_avg_offset_last10: Optional[float] = None
     total_syncs: int = 0
     success_count: int = 0
 
@@ -46,10 +48,22 @@ class NtpStats:
         best = min(successful, key=lambda r: abs(r.offset_ms)).offset_ms
         worst = max(successful, key=lambda r: abs(r.offset_ms)).offset_ms
 
+        # Rolling "Avg Drift (Last 10)" as it would have appeared after each
+        # sync in chronological order, used to find its session min/max.
+        chronological = list(reversed(successful))
+        rolling_averages = [
+            mean(r.offset_ms for r in chronological[max(0, i - 9):i + 1])
+            for i in range(len(chronological))
+        ]
+        min_avg_last10 = min(rolling_averages)
+        max_avg_last10 = max(rolling_averages)
+
         return cls(
             average_offset_last10=avg,
             best_offset=best,
             worst_offset=worst,
+            min_avg_offset_last10=min_avg_last10,
+            max_avg_offset_last10=max_avg_last10,
             total_syncs=len(results),
             success_count=len(successful),
         )

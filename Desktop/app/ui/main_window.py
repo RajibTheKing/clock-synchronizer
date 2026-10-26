@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -163,37 +164,45 @@ class MainWindow(QMainWindow):
         heading.setStyleSheet(f"color: {COLOR_OUTLINE}; font-weight: 700; font-size: 12px;")
         layout.addWidget(heading)
 
-        top_row = QHBoxLayout()
+        # All stats live in one compact grid, grouped to the left, so they
+        # stay close together instead of spreading across a wide window.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(36)
+        grid.setVerticalSpacing(14)
+
         avg_col = QVBoxLayout()
+        avg_col.setSpacing(2)
         avg_label = QLabel("Avg Drift (Last 10)")
         avg_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
         self.avg_value_label = QLabel("N/A")
         self.avg_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
         avg_col.addWidget(avg_label)
         avg_col.addWidget(self.avg_value_label)
-        top_row.addLayout(avg_col)
-        top_row.addStretch(1)
+        grid.addLayout(avg_col, 0, 0, 2, 1)
 
         count_col = QVBoxLayout()
-        count_col.setAlignment(Qt.AlignRight)
+        count_col.setSpacing(2)
         count_label = QLabel("Successful Syncs")
-        count_label.setAlignment(Qt.AlignRight)
         count_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
         self.count_value_label = QLabel("0 / 0")
-        self.count_value_label.setAlignment(Qt.AlignRight)
         self.count_value_label.setStyleSheet("font-size: 16px; font-weight: 700;")
         count_col.addWidget(count_label)
         count_col.addWidget(self.count_value_label)
-        top_row.addLayout(count_col)
-        layout.addLayout(top_row)
+        grid.addLayout(count_col, 0, 1, 2, 1)
 
-        bottom_row = QHBoxLayout()
-        self.best_label, best_tile = self._build_stat_tile("Best Offset")
-        self.worst_label, worst_tile = self._build_stat_tile("Worst Offset")
-        bottom_row.addWidget(best_tile)
-        bottom_row.addStretch(1)
-        bottom_row.addWidget(worst_tile)
-        layout.addLayout(bottom_row)
+        # Min/Max and Min/Max Rolling Avg Drift are each kept side by side
+        # in their own row, stacked under one another.
+        self.best_label, best_tile = self._build_stat_tile("Min")
+        self.worst_label, worst_tile = self._build_stat_tile("Max")
+        self.min_avg_label, min_avg_tile = self._build_stat_tile("Min Rolling Avg")
+        self.max_avg_label, max_avg_tile = self._build_stat_tile("Max Rolling Avg")
+        grid.addWidget(best_tile, 0, 2)
+        grid.addWidget(worst_tile, 0, 3)
+        grid.addWidget(min_avg_tile, 1, 2)
+        grid.addWidget(max_avg_tile, 1, 3)
+
+        grid.setColumnStretch(4, 1)
+        layout.addLayout(grid)
 
         return card
 
@@ -298,6 +307,24 @@ class MainWindow(QMainWindow):
         else:
             self.worst_label.setText("-- ms")
             self.worst_label.setStyleSheet("font-size: 14px; font-weight: 700;")
+
+        if stats.min_avg_offset_last10 is not None:
+            self.min_avg_label.setText(format_offset(stats.min_avg_offset_last10))
+            self.min_avg_label.setStyleSheet(
+                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.min_avg_offset_last10)};"
+            )
+        else:
+            self.min_avg_label.setText("-- ms")
+            self.min_avg_label.setStyleSheet("font-size: 14px; font-weight: 700;")
+
+        if stats.max_avg_offset_last10 is not None:
+            self.max_avg_label.setText(format_offset(stats.max_avg_offset_last10))
+            self.max_avg_label.setStyleSheet(
+                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.max_avg_offset_last10)};"
+            )
+        else:
+            self.max_avg_label.setText("-- ms")
+            self.max_avg_label.setStyleSheet("font-size: 14px; font-weight: 700;")
 
     def _refresh_history_ui(self, host: str) -> None:
         state = self.tab_states[host]
