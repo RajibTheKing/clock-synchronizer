@@ -192,12 +192,12 @@ class MainWindow(QMainWindow):
 
         # Min/Max and Min/Max Rolling Avg Drift are each kept side by side
         # in their own row, stacked under one another.
-        self.best_label, best_tile = self._build_stat_tile("Min")
-        self.worst_label, worst_tile = self._build_stat_tile("Max")
+        self.min_label, min_tile = self._build_stat_tile("Min")
+        self.max_label, max_tile = self._build_stat_tile("Max")
         self.min_avg_label, min_avg_tile = self._build_stat_tile("Min Rolling Avg")
         self.max_avg_label, max_avg_tile = self._build_stat_tile("Max Rolling Avg")
-        grid.addWidget(best_tile, 0, 2)
-        grid.addWidget(worst_tile, 0, 3)
+        grid.addWidget(min_tile, 0, 2)
+        grid.addWidget(max_tile, 0, 3)
         grid.addWidget(min_avg_tile, 1, 2)
         grid.addWidget(max_avg_tile, 1, 3)
 
@@ -290,23 +290,23 @@ class MainWindow(QMainWindow):
 
         self.count_value_label.setText(f"{stats.success_count} / {stats.total_syncs}")
 
-        if stats.best_offset is not None:
-            self.best_label.setText(format_offset(stats.best_offset))
-            self.best_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.best_offset)};"
+        if stats.min_offset is not None:
+            self.min_label.setText(format_offset(stats.min_offset))
+            self.min_label.setStyleSheet(
+                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.min_offset)};"
             )
         else:
-            self.best_label.setText("-- ms")
-            self.best_label.setStyleSheet("font-size: 14px; font-weight: 700;")
+            self.min_label.setText("-- ms")
+            self.min_label.setStyleSheet("font-size: 14px; font-weight: 700;")
 
-        if stats.worst_offset is not None:
-            self.worst_label.setText(format_offset(stats.worst_offset))
-            self.worst_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.worst_offset)};"
+        if stats.max_offset is not None:
+            self.max_label.setText(format_offset(stats.max_offset))
+            self.max_label.setStyleSheet(
+                f"font-size: 14px; font-weight: 700; color: {get_drift_color(stats.max_offset)};"
             )
         else:
-            self.worst_label.setText("-- ms")
-            self.worst_label.setStyleSheet("font-size: 14px; font-weight: 700;")
+            self.max_label.setText("-- ms")
+            self.max_label.setStyleSheet("font-size: 14px; font-weight: 700;")
 
         if stats.min_avg_offset_last10 is not None:
             self.min_avg_label.setText(format_offset(stats.min_avg_offset_last10))

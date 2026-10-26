@@ -219,20 +219,20 @@ private fun StatsDashboardCard(uiState: ClockSyncUiState) {
                 }
             }
 
-            // Secondary Stats: Best & Worst
+            // Secondary Stats: Min & Max
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 StatTile(
-                    label = "Best Offset",
-                    value = stats.bestOffset?.let { formatOffset(it) } ?: "-- ms",
-                    color = stats.bestOffset?.let { getDriftColor(it) } ?: MaterialTheme.colorScheme.onSurface
+                    label = "Min Offset",
+                    value = stats.minOffset?.let { formatOffset(it) } ?: "-- ms",
+                    color = stats.minOffset?.let { getDriftColor(it) } ?: MaterialTheme.colorScheme.onSurface
                 )
                 StatTile(
-                    label = "Worst Offset",
-                    value = stats.worstOffset?.let { formatOffset(it) } ?: "-- ms",
-                    color = stats.worstOffset?.let { getDriftColor(it) } ?: MaterialTheme.colorScheme.onSurface
+                    label = "Max Offset",
+                    value = stats.maxOffset?.let { formatOffset(it) } ?: "-- ms",
+                    color = stats.maxOffset?.let { getDriftColor(it) } ?: MaterialTheme.colorScheme.onSurface
                 )
             }
         }

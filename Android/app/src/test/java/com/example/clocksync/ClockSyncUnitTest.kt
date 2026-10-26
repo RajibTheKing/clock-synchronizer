@@ -14,14 +14,14 @@ class ClockSyncUnitTest {
         val stats = NtpStats.fromResults(emptyList())
 
         assertEquals(0.0, stats.averageOffsetLast10, 0.001)
-        assertNull(stats.bestOffset)
-        assertNull(stats.worstOffset)
+        assertNull(stats.minOffset)
+        assertNull(stats.maxOffset)
         assertEquals(0, stats.totalSyncs)
         assertEquals(0, stats.successCount)
     }
 
     @Test
-    fun ntpStats_calculatesAverageLast10AndBestWorstCorrectly() {
+    fun ntpStats_calculatesAverageLast10AndMinMaxCorrectly() {
         val results = listOf(
             NtpSyncResult(offsetMs = 10L, isSuccess = true),
             NtpSyncResult(offsetMs = -20L, isSuccess = true),
@@ -43,18 +43,18 @@ class ClockSyncUnitTest {
         // Avg = -50 / 10 = -5.0
         assertEquals(-5.0, stats.averageOffsetLast10, 0.001)
 
-        // Best offset (smallest magnitude) is 10L
-        assertEquals(10L, stats.bestOffset)
+        // The lowest signed offset is -100L.
+        assertEquals(-100L, stats.minOffset)
 
-        // Worst offset (largest magnitude) is 500L
-        assertEquals(500L, stats.worstOffset)
+        // The highest signed offset is 500L.
+        assertEquals(500L, stats.maxOffset)
 
         assertEquals(11, stats.totalSyncs)
         assertEquals(11, stats.successCount)
     }
 
     @Test
-    fun ntpStats_ignoresFailedAttemptsInAverageAndBestWorst() {
+    fun ntpStats_ignoresFailedAttemptsInAverageAndMinMax() {
         val results = listOf(
             NtpSyncResult(offsetMs = 15L, isSuccess = true),
             NtpSyncResult(offsetMs = 0L, isSuccess = false, errorMessage = "Timeout"),
@@ -64,8 +64,8 @@ class ClockSyncUnitTest {
         val stats = NtpStats.fromResults(results)
 
         assertEquals(-5.0, stats.averageOffsetLast10, 0.001) // (15 + -25)/2 = -5.0
-        assertEquals(15L, stats.bestOffset)
-        assertEquals(-25L, stats.worstOffset)
+        assertEquals(-25L, stats.minOffset)
+        assertEquals(15L, stats.maxOffset)
         assertEquals(3, stats.totalSyncs)
         assertEquals(2, stats.successCount)
     }

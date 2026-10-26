@@ -30,8 +30,8 @@ class NtpStats:
     """Summary statistics computed across synchronization history."""
 
     average_offset_last10: float = 0.0
-    best_offset: Optional[float] = None
-    worst_offset: Optional[float] = None
+    min_offset: Optional[float] = None
+    max_offset: Optional[float] = None
     min_avg_offset_last10: Optional[float] = None
     max_avg_offset_last10: Optional[float] = None
     total_syncs: int = 0
@@ -45,8 +45,8 @@ class NtpStats:
 
         last10 = successful[:10]
         avg = mean(r.offset_ms for r in last10)
-        best = min(successful, key=lambda r: abs(r.offset_ms)).offset_ms
-        worst = max(successful, key=lambda r: abs(r.offset_ms)).offset_ms
+        min_offset = min(r.offset_ms for r in successful)
+        max_offset = max(r.offset_ms for r in successful)
 
         # Rolling "Avg Drift (Last 10)" as it would have appeared after each
         # sync in chronological order, used to find its session min/max.
@@ -60,8 +60,8 @@ class NtpStats:
 
         return cls(
             average_offset_last10=avg,
-            best_offset=best,
-            worst_offset=worst,
+            min_offset=min_offset,
+            max_offset=max_offset,
             min_avg_offset_last10=min_avg_last10,
             max_avg_offset_last10=max_avg_last10,
             total_syncs=len(results),

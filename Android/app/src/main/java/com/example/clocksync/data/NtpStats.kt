@@ -1,20 +1,18 @@
 package com.example.clocksync.data
 
-import kotlin.math.abs
-
 /**
  * Summary statistics computed across synchronization history.
  *
  * @param averageOffsetLast10 Mean offset in milliseconds across the last 10 successful syncs.
- * @param bestOffset Smallest magnitude (absolute value) clock offset recorded in history.
- * @param worstOffset Largest magnitude (absolute value) clock offset recorded in history.
+ * @param minOffset Lowest signed clock offset recorded in history.
+ * @param maxOffset Highest signed clock offset recorded in history.
  * @param totalSyncs Total number of sync attempts performed.
  * @param successCount Number of successful sync attempts.
  */
 data class NtpStats(
     val averageOffsetLast10: Double = 0.0,
-    val bestOffset: Long? = null,
-    val worstOffset: Long? = null,
+    val minOffset: Long? = null,
+    val maxOffset: Long? = null,
     val totalSyncs: Int = 0,
     val successCount: Int = 0
 ) {
@@ -29,16 +27,13 @@ data class NtpStats(
             val last10 = successfulResults.take(10)
             val avg = last10.map { it.offsetMs }.average()
 
-            // Best offset = minimum absolute drift
-            val best = successfulResults.minByOrNull { abs(it.offsetMs) }?.offsetMs
-
-            // Worst offset = maximum absolute drift
-            val worst = successfulResults.maxByOrNull { abs(it.offsetMs) }?.offsetMs
+            val minOffset = successfulResults.minOf { it.offsetMs }
+            val maxOffset = successfulResults.maxOf { it.offsetMs }
 
             return NtpStats(
                 averageOffsetLast10 = avg,
-                bestOffset = best,
-                worstOffset = worst,
+                minOffset = minOffset,
+                maxOffset = maxOffset,
                 totalSyncs = results.size,
                 successCount = successfulResults.size
             )
