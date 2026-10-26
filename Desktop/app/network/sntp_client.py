@@ -9,6 +9,7 @@ import ntplib
 from app.data.models import NtpSyncResult
 
 DEFAULT_NTP_SERVERS = [
+    "ntp.ubuntu.com",
     "time.google.com",
     "time.cloudflare.com",
     "time.facebook.com",

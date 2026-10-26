@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.data.models import NtpStats, NtpSyncResult
+from app.data.result_logger import SyncResultLogger
 from app.network.connection_info import get_network_connection
 from app.network.sntp_client import SntpClient
 
@@ -95,6 +96,7 @@ class MainWindow(QMainWindow):
 
         self.sntp_client = SntpClient()
         self.servers = self.sntp_client.servers
+        self.result_logger = SyncResultLogger(self.servers)
         self._next_index = 0
         self.current_server: Optional[str] = None
         self.is_syncing = False
@@ -270,6 +272,7 @@ class MainWindow(QMainWindow):
         self._thread.start()
 
     def _on_sync_finished(self, result: NtpSyncResult) -> None:
+        self.result_logger.log(self.current_server or result.server_used, result)
         state = self.tab_states[result.server_used]
         state.history.insert(0, result)
         self.is_syncing = False
