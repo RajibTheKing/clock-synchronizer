@@ -40,24 +40,25 @@ class NtpStats:
 
     @classmethod
     def from_results(cls, results: List[NtpSyncResult]) -> "NtpStats":
-        successful = [r for r in results if r.is_success]
+        successful = [r.offset_ms for r in results if r.is_success]
         if not successful:
             return cls(total_syncs=len(results), success_count=0)
 
-        last10 = successful[:10]
-        avg = mean(r.offset_ms for r in last10)
-        min_offset = min(r.offset_ms for r in successful)
-        max_offset = max(r.offset_ms for r in successful)
+        # let's compute another list to keep roling averaage with last 10 offsets, let's calculate it from reverse
+        avg_offsets = []
+        total = len(successful)
+        for i in range(total, 0, -1):
+            window = successful[i - 1 : min(i + 9, total)]
+            avg_offsets.insert(0, mean(window))
 
-        # Rolling "Avg Offset (Last 10)" as it would have appeared after each
-        # sync in chronological order, used to find its session min/max.
-        chronological = list(reversed(successful))
-        rolling_averages = [
-            mean(r.offset_ms for r in chronological[max(0, i - 9):i + 1])
-            for i in range(len(chronological))
-        ]
-        min_avg_last10 = min(rolling_averages)
-        max_avg_last10 = max(rolling_averages)
+        avg = avg_offsets[0]
+        min_avg_last10 = min(avg_offsets[0:10])
+        max_avg_last10 = max(avg_offsets[0:10])
+
+        min_offset = min(successful)
+        max_offset = max(successful)
+
+
 
         return cls(
             average_offset_last10=avg,
