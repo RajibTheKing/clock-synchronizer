@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from statistics import mean
+from statistics import mean, median
 from typing import List, Optional
 
 
@@ -31,6 +31,7 @@ class NtpStats:
     """Summary statistics computed across synchronization history."""
 
     average_offset_last10: float = 0.0
+    median_offset_last10: float = 0.0
     min_offset: Optional[float] = None
     max_offset: Optional[float] = None
     min_avg_offset_last10: Optional[float] = None
@@ -44,28 +45,13 @@ class NtpStats:
         if not successful:
             return cls(total_syncs=len(results), success_count=0)
 
-        # let's compute another list to keep roling averaage with last 10 offsets, let's calculate it from reverse
-        avg_offsets = []
-        total = len(successful)
-        for i in range(total, 0, -1):
-            window = successful[i - 1 : min(i + 9, total)]
-            avg_offsets.insert(0, mean(window))
-
-        avg = avg_offsets[0]
-        min_avg_last10 = min(avg_offsets[0:10])
-        max_avg_last10 = max(avg_offsets[0:10])
-
-        min_offset = min(successful)
-        max_offset = max(successful)
-
-
+        last10 = successful[:10]  # newest first, matching the old rolling window
 
         return cls(
-            average_offset_last10=avg,
-            min_offset=min_offset,
-            max_offset=max_offset,
-            min_avg_offset_last10=min_avg_last10,
-            max_avg_offset_last10=max_avg_last10,
+            average_offset_last10=mean(last10),
+            median_offset_last10=median(last10),
+            min_offset=min(successful),
+            max_offset=max(successful),
             total_syncs=len(results),
             success_count=len(successful),
         )

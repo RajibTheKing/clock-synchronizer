@@ -72,6 +72,9 @@ class SntpClient:
         client = ntplib.NTPClient()
         response = client.request(host, version=3, timeout=self._timeout)
 
+        # corrected_offset = (response.offset * 1000) - 6.5 - 0.85*(response.delay * 1000 - 27.0) / 2.0
+        
+
         return NtpSyncResult(
             timestamp_ms=int(time.time() * 1000),
             offset_ms=response.offset * 1000,

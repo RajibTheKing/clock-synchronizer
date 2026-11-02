@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._on_tick)
-        self.timer.start(1000)
+        self.timer.start(500) # 0.5 seconds
         self._on_tick()
 
     # ------------------------------------------------------------------ UI
@@ -185,13 +185,23 @@ class MainWindow(QMainWindow):
 
         avg_col = QVBoxLayout()
         avg_col.setSpacing(2)
-        avg_label = QLabel("Avg Offset (Last 10)")
+        avg_label = QLabel("Mean Offset (Last 10)")
         avg_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
         self.avg_value_label = QLabel("N/A")
         self.avg_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
         avg_col.addWidget(avg_label)
         avg_col.addWidget(self.avg_value_label)
         grid.addLayout(avg_col, 0, 0, 2, 1)
+
+        median_col = QVBoxLayout()
+        median_col.setSpacing(2)
+        median_label = QLabel("Median Offset (Last 10)")
+        median_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
+        self.median_value_label = QLabel("N/A")
+        self.median_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
+        median_col.addWidget(median_label)
+        median_col.addWidget(self.median_value_label)
+        grid.addLayout(median_col, 0, 1, 2, 1)
 
         count_col = QVBoxLayout()
         count_col.setSpacing(2)
@@ -201,20 +211,15 @@ class MainWindow(QMainWindow):
         self.count_value_label.setStyleSheet("font-size: 16px; font-weight: 700;")
         count_col.addWidget(count_label)
         count_col.addWidget(self.count_value_label)
-        grid.addLayout(count_col, 0, 1, 2, 1)
+        grid.addLayout(count_col, 0, 2, 2, 1)
 
-        # Min/Max and Min/Max Rolling Avg Offset are each kept side by side
-        # in their own row, stacked under one another.
+        # Min/Max offsets are kept side by side.
         self.min_label, min_tile = self._build_stat_tile("Min")
         self.max_label, max_tile = self._build_stat_tile("Max")
-        self.min_avg_label, min_avg_tile = self._build_stat_tile("Min Rolling Avg")
-        self.max_avg_label, max_avg_tile = self._build_stat_tile("Max Rolling Avg")
-        grid.addWidget(min_tile, 0, 2)
-        grid.addWidget(max_tile, 0, 3)
-        grid.addWidget(min_avg_tile, 1, 2)
-        grid.addWidget(max_avg_tile, 1, 3)
+        grid.addWidget(min_tile, 0, 3)
+        grid.addWidget(max_tile, 0, 4)
 
-        grid.setColumnStretch(4, 1)
+        grid.setColumnStretch(5, 1)
         layout.addLayout(grid)
 
         return card
@@ -298,9 +303,15 @@ class MainWindow(QMainWindow):
             self.avg_value_label.setStyleSheet(
                 f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.average_offset_last10)};"
             )
+            self.median_value_label.setText(f"{stats.median_offset_last10:.1f} ms")
+            self.median_value_label.setStyleSheet(
+                f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.median_offset_last10)};"
+            )
         else:
             self.avg_value_label.setText("N/A")
             self.avg_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
+            self.median_value_label.setText("N/A")
+            self.median_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
 
         self.count_value_label.setText(f"{stats.success_count} / {stats.total_syncs}")
 
@@ -321,24 +332,6 @@ class MainWindow(QMainWindow):
         else:
             self.max_label.setText("-- ms")
             self.max_label.setStyleSheet("font-size: 14px; font-weight: 700;")
-
-        if stats.min_avg_offset_last10 is not None:
-            self.min_avg_label.setText(format_offset(stats.min_avg_offset_last10))
-            self.min_avg_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_offset_color(stats.min_avg_offset_last10)};"
-            )
-        else:
-            self.min_avg_label.setText("-- ms")
-            self.min_avg_label.setStyleSheet("font-size: 14px; font-weight: 700;")
-
-        if stats.max_avg_offset_last10 is not None:
-            self.max_avg_label.setText(format_offset(stats.max_avg_offset_last10))
-            self.max_avg_label.setStyleSheet(
-                f"font-size: 14px; font-weight: 700; color: {get_offset_color(stats.max_avg_offset_last10)};"
-            )
-        else:
-            self.max_avg_label.setText("-- ms")
-            self.max_avg_label.setStyleSheet("font-size: 14px; font-weight: 700;")
 
     def _refresh_history_ui(self, host: str) -> None:
         state = self.tab_states[host]
