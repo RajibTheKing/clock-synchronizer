@@ -19,6 +19,7 @@ DEFAULT_NTP_SERVERS = [
     "time.nist.gov",
 ]
 DEFAULT_TIMEOUT_SECONDS = 3
+MAX_ROUND_TRIP_DELAY_MS = 100
 
 
 class SntpClient:
@@ -75,10 +76,20 @@ class SntpClient:
         # corrected_offset = (response.offset * 1000) - 6.5 - 0.85*(response.delay * 1000 - 27.0) / 2.0
         
 
+        round_trip_delay_ms = abs(response.delay * 1000)
+        is_success = round_trip_delay_ms <= MAX_ROUND_TRIP_DELAY_MS
+
         return NtpSyncResult(
             timestamp_ms=int(time.time() * 1000),
             offset_ms=response.offset * 1000,
-            round_trip_delay_ms=abs(response.delay * 1000),
+            round_trip_delay_ms=round_trip_delay_ms,
             server_used=host,
-            is_success=True,
+            is_success=is_success,
+            error_message=(
+                None
+                if is_success
+                else (
+                    f"{response.offset * 1000:.1f} ms [Discarded -> RTT is too high]"
+                )
+            ),
         )

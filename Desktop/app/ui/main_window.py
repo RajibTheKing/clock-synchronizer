@@ -358,12 +358,15 @@ class MainWindow(QMainWindow):
         state.table.setRowCount(len(state.history))
         for row, result in enumerate(state.history):
             moment = datetime.fromtimestamp(result.timestamp_ms / 1000)
+            rtt = (
+                f"{result.round_trip_delay_ms:.0f} ms"
+                if result.is_success or result.round_trip_delay_ms > 0
+                else "--"
+            )
             if result.is_success:
-                rtt = f"{result.round_trip_delay_ms:.0f} ms"
                 offset_text = format_offset(result.offset_ms)
                 offset_color = get_offset_color(result.offset_ms)
             else:
-                rtt = "--"
                 offset_text = result.error_message or "Error"
                 offset_color = COLOR_BAD
             values = [
