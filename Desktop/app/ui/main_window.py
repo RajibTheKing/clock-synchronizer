@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._on_tick)
-        self.timer.start(500) # 0.5 seconds
+        self.timer.start(500) # 0.5 second
         self._on_tick()
 
     # ------------------------------------------------------------------ UI
