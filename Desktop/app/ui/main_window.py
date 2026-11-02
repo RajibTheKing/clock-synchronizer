@@ -183,25 +183,26 @@ class MainWindow(QMainWindow):
         grid.setHorizontalSpacing(36)
         grid.setVerticalSpacing(14)
 
-        avg_col = QVBoxLayout()
-        avg_col.setSpacing(2)
-        avg_label = QLabel("Mean Offset (Last 10)")
-        avg_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
-        self.avg_value_label = QLabel("N/A")
-        self.avg_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
-        avg_col.addWidget(avg_label)
-        avg_col.addWidget(self.avg_value_label)
-        grid.addLayout(avg_col, 0, 0, 2, 1)
+        # Rows: last 10 on top, last 20 below, so the two windows are easy to compare.
+        def build_stat(title: str) -> tuple[QLabel, QVBoxLayout]:
+            col = QVBoxLayout()
+            col.setSpacing(2)
+            title_label = QLabel(title)
+            title_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
+            value_label = QLabel("N/A")
+            value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
+            col.addWidget(title_label)
+            col.addWidget(value_label)
+            return value_label, col
 
-        median_col = QVBoxLayout()
-        median_col.setSpacing(2)
-        median_label = QLabel("Median Offset (Last 10)")
-        median_label.setStyleSheet(f"color: {COLOR_OUTLINE}; font-size: 11px;")
-        self.median_value_label = QLabel("N/A")
-        self.median_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
-        median_col.addWidget(median_label)
-        median_col.addWidget(self.median_value_label)
-        grid.addLayout(median_col, 0, 1, 2, 1)
+        self.avg_value_label, avg_col = build_stat("Mean Offset (Last 10)")
+        self.avg20_value_label, avg20_col = build_stat("Mean Offset (Last 20)")
+        self.median_value_label, median_col = build_stat("Median Offset (Last 10)")
+        self.median20_value_label, median20_col = build_stat("Median Offset (Last 20)")
+        grid.addLayout(avg_col, 0, 0)
+        grid.addLayout(avg20_col, 1, 0)
+        grid.addLayout(median_col, 0, 1)
+        grid.addLayout(median20_col, 1, 1)
 
         count_col = QVBoxLayout()
         count_col.setSpacing(2)
@@ -299,19 +300,31 @@ class MainWindow(QMainWindow):
         host = self.servers[max(self.tabs.currentIndex(), 0)]
         stats = NtpStats.from_results(self.tab_states[host].history)
         if stats.success_count > 0:
-            self.avg_value_label.setText(f"{stats.average_offset_last10:.1f} ms")
+            self.avg_value_label.setText(f"{stats.mean_offset_last10:.1f} ms")
             self.avg_value_label.setStyleSheet(
-                f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.average_offset_last10)};"
+                f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.mean_offset_last10)};"
             )
             self.median_value_label.setText(f"{stats.median_offset_last10:.1f} ms")
             self.median_value_label.setStyleSheet(
                 f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.median_offset_last10)};"
             )
+            self.avg20_value_label.setText(f"{stats.mean_offset_last20:.1f} ms")
+            self.avg20_value_label.setStyleSheet(
+                f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.mean_offset_last20)};"
+            )
+            self.median20_value_label.setText(f"{stats.median_offset_last20:.1f} ms")
+            self.median20_value_label.setStyleSheet(
+                f"font-size: 24px; font-weight: 800; color: {get_offset_color(stats.median_offset_last20)};"
+            )
         else:
-            self.avg_value_label.setText("N/A")
-            self.avg_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
-            self.median_value_label.setText("N/A")
-            self.median_value_label.setStyleSheet("font-size: 24px; font-weight: 800;")
+            for label in (
+                self.avg_value_label,
+                self.median_value_label,
+                self.avg20_value_label,
+                self.median20_value_label,
+            ):
+                label.setText("N/A")
+                label.setStyleSheet("font-size: 24px; font-weight: 800;")
 
         self.count_value_label.setText(f"{stats.success_count} / {stats.total_syncs}")
 

@@ -30,8 +30,10 @@ class NtpSyncResult:
 class NtpStats:
     """Summary statistics computed across synchronization history."""
 
-    average_offset_last10: float = 0.0
+    mean_offset_last10: float = 0.0
     median_offset_last10: float = 0.0
+    mean_offset_last20: float = 0.0
+    median_offset_last20: float = 0.0
     min_offset: Optional[float] = None
     max_offset: Optional[float] = None
     min_avg_offset_last10: Optional[float] = None
@@ -47,9 +49,13 @@ class NtpStats:
 
         last10 = successful[:10]  # newest first, matching the old rolling window
 
+        last20 = successful[:20]
+
         return cls(
-            average_offset_last10=mean(last10),
+            mean_offset_last10=mean(last10),
             median_offset_last10=median(last10),
+            mean_offset_last20=mean(last20),
+            median_offset_last20=median(last20),
             min_offset=min(successful),
             max_offset=max(successful),
             total_syncs=len(results),
