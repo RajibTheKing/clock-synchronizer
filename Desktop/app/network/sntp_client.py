@@ -53,7 +53,9 @@ class SntpClient:
         response = client.request(server, version=3, timeout=timeout)
 
         # offset = how far your system clock is from true time (seconds)
-        # positive = your clock is ahead, negative = your clock is behind
+        # Positive offset: the NTP server is ahead of system clock
+        # Negative offset: the NTP server is behind from system clock
+
         offset = response.offset * 1000  # Convert to milliseconds
 
         return offset
@@ -69,12 +71,13 @@ class SntpClient:
         except Exception as exc:  # noqa: BLE001 - surfaced to the UI, not fatal
             return NtpSyncResult(is_success=False, server_used=host, error_message=str(exc))
 
+
     def _query_server(self, host: str) -> NtpSyncResult:
         client = ntplib.NTPClient()
         response = client.request(host, version=3, timeout=self._timeout)
 
         # corrected_offset = (response.offset * 1000) - 6.5 - 0.85*(response.delay * 1000 - 27.0) / 2.0
-        
+
 
         round_trip_delay_ms = abs(response.delay * 1000)
         is_success = round_trip_delay_ms <= MAX_ROUND_TRIP_DELAY_MS
