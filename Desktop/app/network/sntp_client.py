@@ -18,7 +18,7 @@ DEFAULT_NTP_SERVERS = [
     "pool.ntp.org",
     "time.nist.gov",
 ]
-DEFAULT_TIMEOUT_SECONDS = 3
+DEFAULT_TIMEOUT_SECONDS = 1
 MAX_ROUND_TRIP_DELAY_MS = 100
 
 

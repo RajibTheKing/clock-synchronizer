@@ -97,19 +97,15 @@ class MainWindow(QMainWindow):
         self.sntp_client = SntpClient()
         self.servers = self.sntp_client.servers
         self.result_logger = SyncResultLogger(self.servers)
-        self._next_index = 0
-        self.current_server: Optional[str] = None
-        self.is_syncing = False
-
-        self._thread: Optional[QThread] = None
-        self._worker: Optional[NtpWorker] = None
+        self._threads: dict[str, QThread] = {}
+        self._workers: dict[str, NtpWorker] = {}
 
         self._build_ui()
         self._refresh_stats_ui()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._on_tick)
-        self.timer.start(500) # 0.5 second
+        self.timer.start(1000) # 1 second interval
         self._on_tick()
 
     # ------------------------------------------------------------------ UI
@@ -256,44 +252,47 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------- actions
     def _on_tick(self) -> None:
-        if self.is_syncing:
-            return
-        host = self.servers[self._next_index]
-        self._next_index = (self._next_index + 1) % len(self.servers)
-        self._perform_sync(host)
+        # One thread per server; a server still awaiting a reply is skipped
+        # so requests never pile up on slow servers.
+        for host in self.servers:
+            if host not in self._threads:
+                self._perform_sync(host)
 
     def _perform_sync(self, host: str) -> None:
-        self.is_syncing = True
-        self.current_server = host
+        thread = QThread(self)
+        worker = NtpWorker(self.sntp_client, host)
+        worker.moveToThread(thread)
+        self._threads[host] = thread
+        self._workers[host] = worker
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_sync_finished)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(lambda h=host: self._on_thread_finished(h))
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
         self._update_status_label()
 
-        self._thread = QThread(self)
-        self._worker = NtpWorker(self.sntp_client, host)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_sync_finished)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.start()
+    def _on_thread_finished(self, host: str) -> None:
+        self._threads.pop(host, None)
+        self._workers.pop(host, None)
+        self._update_status_label()
 
     def _on_sync_finished(self, result: NtpSyncResult) -> None:
-        self.result_logger.log(self.current_server or result.server_used, result)
+        self.result_logger.log(result.server_used, result)
         state = self.tab_states[result.server_used]
         state.history.insert(0, result)
-        self.is_syncing = False
-        self._update_status_label()
         self._refresh_history_ui(result.server_used)
         self._refresh_stats_ui()
 
     # --------------------------------------------------------------- render
     def _update_status_label(self) -> None:
-        if self.is_syncing and self.current_server:
-            self.status_label.setText(f"Syncing with {self.current_server}...")
+        active = len(self._threads)
+        if active:
+            self.status_label.setText(f"Syncing with {active}/{len(self.servers)} servers...")
             self.status_label.setStyleSheet(f"color: {COLOR_PRIMARY}; font-weight: 600;")
         else:
-            upcoming = self.servers[self._next_index]
-            self.status_label.setText(f"Next: {upcoming}")
+            self.status_label.setText("Idle")
             self.status_label.setStyleSheet(f"color: {COLOR_OUTLINE};")
 
     def _refresh_stats_ui(self) -> None:
@@ -385,10 +384,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self.timer.stop()
-        try:
-            if self._thread is not None and self._thread.isRunning():
-                self._thread.quit()
-                self._thread.wait(2000)
-        except RuntimeError:
-            pass  # background thread's C++ object was already torn down
+        for thread in list(self._threads.values()):
+            try:
+                if thread.isRunning():
+                    thread.quit()
+                    thread.wait(2000)
+            except RuntimeError:
+                pass  # background thread's C++ object was already torn down
         super().closeEvent(event)
