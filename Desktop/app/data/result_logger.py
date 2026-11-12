@@ -16,7 +16,7 @@ class SyncResultLogger:
     """Creates a timestamped run folder and appends one JSON line per result."""
 
     def __init__(self, servers: Iterable[str], base_dir: Path = DEFAULT_BASE_DIR) -> None:
-        self.run_dir = base_dir / datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_dir = base_dir /"Dataset" / datetime.now().strftime("%Y%m%d_%H%M%S")
         self.run_dir.mkdir(parents=True, exist_ok=True)
         for server in servers:
             self._path_for(server).touch()
