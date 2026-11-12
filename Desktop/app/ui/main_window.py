@@ -5,6 +5,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
+import json
+
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor
@@ -27,6 +29,7 @@ from app.data.models import NtpStats, NtpSyncResult
 from app.data.result_logger import SyncResultLogger
 from app.network.connection_info import get_network_connection
 from app.network.sntp_client import SntpClient
+from app.network.network_worker_mqtt import NetworkWorkerMqtt
 
 HISTORY_COLUMNS = [
     "Device MAC ID",
@@ -107,6 +110,8 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self._on_tick)
         self.timer.start(2000) # 2 second interval
         self._on_tick()
+
+        self.network_worker_mqtt = NetworkWorkerMqtt()  # Initialize MQTT worker
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -280,6 +285,21 @@ class MainWindow(QMainWindow):
 
     def _on_sync_finished(self, result: NtpSyncResult) -> None:
         self.result_logger.log(result.server_used, result)
+        if self.network_worker_mqtt.is_connected and result.server_used == "pool.ntp.org":
+            payload = {
+                "device_mac": self.device_mac,
+                "client_type": "remote_control",
+                "timestamp_ms": result.timestamp_ms,
+                "offset_ms": result.offset_ms,
+                "round_trip_delay_ms": result.round_trip_delay_ms,
+                "server_used": result.server_used,
+                "is_success": result.is_success,
+                "error_message": result.error_message,
+                "network_connection": result.network_connection,
+            }
+            data = json.dumps(payload).encode('utf-8')
+            self.network_worker_mqtt.send_data(data)
+
         state = self.tab_states[result.server_used]
         state.history.insert(0, result)
         self._refresh_history_ui(result.server_used)
@@ -391,4 +411,5 @@ class MainWindow(QMainWindow):
                     thread.wait(2000)
             except RuntimeError:
                 pass  # background thread's C++ object was already torn down
+        self.network_worker_mqtt.disconnect()  # Disconnect MQTT client on close
         super().closeEvent(event)

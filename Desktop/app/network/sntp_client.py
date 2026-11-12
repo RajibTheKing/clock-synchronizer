@@ -1,4 +1,3 @@
-"""SNTP client for measuring system clock offset against NTP servers."""
 from __future__ import annotations
 
 import time
@@ -8,16 +7,21 @@ import ntplib
 
 from app.data.models import NtpSyncResult
 
+# DEFAULT_NTP_SERVERS = [
+#     "ntp.ubuntu.com",
+#     "time.google.com",
+#     "time.cloudflare.com",
+#     "time.facebook.com",
+#     "time.apple.com",
+#     "time.windows.com",
+#     "pool.ntp.org",
+#     "time.nist.gov",
+# ]
+
 DEFAULT_NTP_SERVERS = [
-    "ntp.ubuntu.com",
-    "time.google.com",
-    "time.cloudflare.com",
-    "time.facebook.com",
-    "time.apple.com",
-    "time.windows.com",
-    "pool.ntp.org",
-    "time.nist.gov",
+   "pool.ntp.org",
 ]
+
 DEFAULT_TIMEOUT_SECONDS = 1
 MAX_ROUND_TRIP_DELAY_MS = 100
 
