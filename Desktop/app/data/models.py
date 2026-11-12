@@ -1,4 +1,3 @@
-"""Data models for NTP synchronization results and statistics."""
 from __future__ import annotations
 
 import time
@@ -10,11 +9,6 @@ from typing import List, Optional
 
 @dataclass
 class NtpSyncResult:
-    """Represents the result of a single NTP clock offset calculation.
-
-    offset_ms: Clock offset in milliseconds. Positive = local clock is ahead
-    of true time, negative = local clock is behind true time.
-    """
 
     timestamp_ms: int = field(default_factory=lambda: int(time.time() * 1000))
     offset_ms: float = 0.0
@@ -28,8 +22,6 @@ class NtpSyncResult:
 
 @dataclass
 class NtpStats:
-    """Summary statistics computed across synchronization history."""
-
     mean_offset_last10: float = 0.0
     median_offset_last10: float = 0.0
     mean_offset_last20: float = 0.0
