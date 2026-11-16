@@ -18,6 +18,9 @@ class NetworkWorkerMqtt:
         self.topic = MQTT_TOPICS.CLOCK_RC  # Default topic for clock offset data
         self.is_connected = False
 
+        # Retry with exponential backoff (1s..5s) if the broker is unreachable or the connection drops
+        self.mqtt_client.reconnect_delay_set(min_delay=1, max_delay=5)
+
         # Set up callbacks
         self.mqtt_client.on_connect = self._on_connect
         self.mqtt_client.on_disconnect = self._on_disconnect
@@ -27,12 +30,17 @@ class NetworkWorkerMqtt:
 
     def connect(self):
         try:
-            self.mqtt_client.connect(SERVER, MQTT_PORT, keepalive=60)
+            # connect_async defers the TCP connection to the network loop thread,
+            # so failures (e.g. no network at startup) are retried instead of raised here.
+            # A short keepalive detects silent drops (e.g. interface change) quickly,
+            # instead of waiting up to ~2x a long keepalive before noticing.
+            self.mqtt_client.connect_async(SERVER, MQTT_PORT, keepalive=1)
             self.mqtt_client.loop_start()
         except Exception as e:
             self.is_connected = False
 
     def _on_connect(self, client, userdata, flags, rc):
+        print(f"Connected to MQTT broker (code: {rc})")
         if rc == 0:
             self.is_connected = True
         else:

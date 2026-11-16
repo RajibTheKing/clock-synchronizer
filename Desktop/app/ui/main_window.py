@@ -285,7 +285,7 @@ class MainWindow(QMainWindow):
 
     def _on_sync_finished(self, result: NtpSyncResult) -> None:
         self.result_logger.log(result.server_used, result)
-        if self.network_worker_mqtt.is_connected and result.server_used == "pool.ntp.org":
+        if result.is_success and self.network_worker_mqtt.is_connected and result.server_used == "pool.ntp.org":
             payload = {
                 "device_mac": self.device_mac,
                 "client_type": "remote_control",
