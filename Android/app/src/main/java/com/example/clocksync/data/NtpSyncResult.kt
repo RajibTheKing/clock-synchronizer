@@ -22,5 +22,6 @@ data class NtpSyncResult(
     val roundTripDelayMs: Long = 0L,
     val serverUsed: String = "",
     val isSuccess: Boolean = true,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val networkConnection: String = "Unknown"
 )

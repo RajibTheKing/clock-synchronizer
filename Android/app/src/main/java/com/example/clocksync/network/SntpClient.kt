@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.net.ntp.NTPUDPClient
 import org.apache.commons.net.ntp.TimeInfo
 import java.net.InetAddress
+import java.io.IOException
 import kotlin.math.abs
 
 /**
@@ -29,7 +30,7 @@ class SntpClient(
             try {
                 val result = queryServer(host, timeoutMs)
                 return@withContext result
-            } catch (e: Exception) {
+            } catch (e: IOException) {
                 lastError = e
             }
         }
@@ -72,15 +73,17 @@ class SntpClient(
             val timeInfo: TimeInfo = client.getTime(address)
             timeInfo.computeDetails()
 
-            val offset = timeInfo.offset ?: 0L
-            val delay = timeInfo.delay ?: 0L
+            val offset = timeInfo.offset ?: throw IOException("NTP response has no offset")
+            val delay = abs(timeInfo.delay ?: throw IOException("NTP response has no round-trip delay"))
+            val success = isAcceptableDelay(delay)
 
             NtpSyncResult(
                 timestampMs = timeInfo.returnTime,
                 offsetMs = offset,
-                roundTripDelayMs = abs(delay),
+                roundTripDelayMs = delay,
                 serverUsed = host,
-                isSuccess = true
+                isSuccess = success,
+                errorMessage = if (success) null else "$offset ms [Discarded -> RTT is too high]"
             )
         }
     }
@@ -90,5 +93,7 @@ class SntpClient(
             "pool.ntp.org"
         )
         const val DEFAULT_TIMEOUT_MS = 3000
+        const val MAX_ROUND_TRIP_DELAY_MS = 100L
+        internal fun isAcceptableDelay(delayMs: Long) = delayMs <= MAX_ROUND_TRIP_DELAY_MS
     }
 }

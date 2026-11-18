@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -91,6 +93,13 @@ fun ClockSyncScreen(
             // Top Summary Dashboard
             StatsDashboardCard(uiState = uiState)
 
+            Text(
+                text = uiState.serviceError ?: "MQTT: ${uiState.mqttStatus} · Installation ID: ${uiState.deviceId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (uiState.serviceError != null) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             // Controls Row (Sync Now + Auto Sync Switch)
             ControlsRow(
                 uiState = uiState,
@@ -141,7 +150,16 @@ fun ClockSyncScreen(
                     )
                 }
             } else {
+                val listState = rememberLazyListState()
+
+                LaunchedEffect(uiState.history.firstOrNull()?.id) {
+                    if (uiState.history.isNotEmpty()) {
+                        listState.animateScrollToItem(0)
+                    }
+                }
+
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -225,6 +243,27 @@ private fun StatsDashboardCard(uiState: ClockSyncUiState) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 StatTile(
+                    label = "Median (Last 10)",
+                    value = if (stats.successCount > 0) String.format(Locale.getDefault(), "%.1f ms", stats.medianOffsetLast10) else "N/A",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                StatTile(
+                    label = "Mean (Last 20)",
+                    value = if (stats.successCount > 0) String.format(Locale.getDefault(), "%.1f ms", stats.averageOffsetLast20) else "N/A",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                StatTile(
+                    label = "Median (Last 20)",
+                    value = if (stats.successCount > 0) String.format(Locale.getDefault(), "%.1f ms", stats.medianOffsetLast20) else "N/A",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                StatTile(
                     label = "Min Offset",
                     value = stats.minOffset?.let { formatOffset(it) } ?: "-- ms",
                     color = stats.minOffset?.let { getDriftColor(it) } ?: MaterialTheme.colorScheme.onSurface
@@ -269,7 +308,7 @@ private fun ControlsRow(
     ) {
         Button(
             onClick = onSyncNow,
-            enabled = !uiState.isSyncing,
+            enabled = uiState.isServiceRunning && !uiState.isSyncing,
             modifier = Modifier.weight(1f)
         ) {
             if (uiState.isSyncing) {
@@ -298,6 +337,7 @@ private fun ControlsRow(
             )
             Switch(
                 checked = uiState.isAutoSyncEnabled,
+                enabled = uiState.isServiceRunning,
                 onCheckedChange = { onToggleAutoSync() }
             )
         }
@@ -306,7 +346,7 @@ private fun ControlsRow(
 
 @Composable
 private fun NtpResultCard(item: NtpSyncResult) {
-    val timeFormatted = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.timestampMs))
+    val timeFormatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(item.timestampMs))
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -345,6 +385,11 @@ private fun NtpResultCard(item: NtpSyncResult) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = if (item.isSuccess) "Server: ${item.serverUsed}" else (item.errorMessage ?: "Failed"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = item.networkConnection,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -5,6 +5,8 @@ import com.example.clocksync.data.NtpSyncResult
 import com.example.clocksync.network.SntpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ClockSyncUnitTest {
@@ -74,5 +76,39 @@ class ClockSyncUnitTest {
     fun sntpClient_defaultConfiguration_usesPoolNtpOrg() {
         val servers = SntpClient.DEFAULT_NTP_SERVERS
         assertEquals(listOf("pool.ntp.org"), servers)
+    }
+
+    @Test
+    fun sntpClient_rejectsRoundTripDelaysAbove100Milliseconds() {
+        assertTrue(SntpClient.isAcceptableDelay(100))
+        assertFalse(SntpClient.isAcceptableDelay(101))
+    }
+
+    @Test
+    fun ntpStats_calculatesRollingMediansAndMeansIgnoringFailures() {
+        val results = (1L..21L).map { NtpSyncResult(offsetMs = it, isSuccess = true) }
+            .toMutableList()
+        results.add(0, NtpSyncResult(offsetMs = 1000, isSuccess = false))
+
+        val stats = NtpStats.fromResults(results)
+
+        assertEquals(5.5, stats.averageOffsetLast10, 0.001)
+        assertEquals(5.5, stats.medianOffsetLast10, 0.001)
+        assertEquals(10.5, stats.averageOffsetLast20, 0.001)
+        assertEquals(10.5, stats.medianOffsetLast20, 0.001)
+        assertEquals(21, stats.successCount)
+        assertEquals(22, stats.totalSyncs)
+    }
+
+    @Test
+    fun ntpStats_calculatesOddMedianFromSuccessfulOffsets() {
+        val stats = NtpStats.fromResults(listOf(
+            NtpSyncResult(offsetMs = -8),
+            NtpSyncResult(offsetMs = 30),
+            NtpSyncResult(offsetMs = 5)
+        ))
+
+        assertEquals(5.0, stats.medianOffsetLast10, 0.001)
+        assertEquals(5.0, stats.medianOffsetLast20, 0.001)
     }
 }
